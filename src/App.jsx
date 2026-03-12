@@ -2,6 +2,31 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 const DB_URL = "https://spring-party-scoring-default-rtdb.asia-southeast1.firebasedatabase.app";
 
+const WANG_COLOR = "#E8845A";
+const WANG_BG = "#FFF0E8";
+const MIAO_COLOR = "#4FAFAF";
+const MIAO_BG = "transparent"; // 喵喵隊無網底
+
+const T = {
+  wrap: "linear-gradient(135deg, #fdf4f0, #f8e8e0, #f5ddd8)",
+  card: "#fefaf8",
+  cardBorder: "#e8a898",
+  h1: "#a05050",
+  tab: "#c87868",
+  tabText: "#fff",
+  tabInactive: "#f8e0d8",
+  tabInactiveText: "#a05050",
+  th: "#b86858",
+  score: "#a05050",
+  inp: "#fdf4f0",
+  inpBorder: "#e8a898",
+  syncOk: "#4FAFAF",
+  syncWarn: "#e8a030",
+  syncErr: "#e05050",
+  firstRowBg: "#FFF9DC", // 馬卡龍淡黃，第一名
+  bonusColor: "#D4A000", // 加成黃色
+};
+
 const GROUPS = Array.from({ length: 11 }, (_, i) => ({
   id: i,
   name: `第${i}組`,
@@ -37,16 +62,14 @@ export default function App() {
   const [g2, setG2] = useState(initG2());
   const [g3, setG3] = useState(initG3());
   const [showChampion, setShowChampion] = useState(false);
-  const [syncStatus, setSyncStatus] = useState("connecting"); // connecting | synced | error
+  const [syncStatus, setSyncStatus] = useState("connecting");
   const confettiRef = useRef(null);
   const esRef = useRef(null);
   const saveTimerRef = useRef(null);
 
-  // 讀取初始資料 + 建立 SSE 即時監聽
   useEffect(() => {
     const es = new EventSource(`${DB_URL}/scores.json?accept=text/event-stream`);
     esRef.current = es;
-
     es.addEventListener("put", (e) => {
       try {
         const payload = JSON.parse(e.data);
@@ -58,7 +81,6 @@ export default function App() {
         setSyncStatus("synced");
       } catch {}
     });
-
     es.addEventListener("patch", (e) => {
       try {
         const payload = JSON.parse(e.data);
@@ -70,13 +92,10 @@ export default function App() {
         setSyncStatus("synced");
       } catch {}
     });
-
     es.onerror = () => setSyncStatus("error");
-
     return () => es.close();
   }, []);
 
-  // debounce 儲存：input 變動後 800ms 才上傳
   const scheduleSave = useCallback((newG1, newG2, newG3) => {
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
@@ -98,7 +117,6 @@ export default function App() {
   const updateG2 = (newG2) => { setG2(newG2); scheduleSave(g1, newG2, g3); };
   const updateG3 = (newG3) => { setG3(newG3); scheduleSave(g1, g2, newG3); };
 
-  // 分數計算（同原本邏輯）
   const g1Scores = (() => {
     const vals = g1.map((g) => ({ id: g.id, val: g.r1 !== "" ? parseFloat(g.r1) : null }));
     const ranked = getRankScores(vals, true);
@@ -155,7 +173,6 @@ export default function App() {
     })
     .sort((a, b) => b.final - a.final);
 
-  // Confetti
   useEffect(() => {
     if (!showChampion) return;
     let frame;
@@ -169,7 +186,7 @@ export default function App() {
       y: Math.random() * -canvas.height,
       r: Math.random() * 8 + 4,
       d: Math.random() * 60 + 20,
-      color: ["#f72585","#7209b7","#3a86ff","#fb5607","#ffbe0b","#06d6a0"][Math.floor(Math.random() * 6)],
+      color: ["#e8a898","#4FAFAF","#E8845A","#f5c8b8","#a0d8d8","#FFF9DC"][Math.floor(Math.random() * 6)],
       tilt: Math.random() * 10 - 10,
       speed: Math.random() * 3 + 1,
     }));
@@ -192,53 +209,61 @@ export default function App() {
   }, [showChampion]);
 
   const syncLabel = { connecting: "⏳ 同步中…", synced: "✅ 已同步", error: "❌ 同步失敗" };
-  const syncColor = { connecting: "#f59e0b", synced: "#10b981", error: "#ef4444" };
+  const syncColor = { connecting: T.syncWarn, synced: T.syncOk, error: T.syncErr };
 
   const S = {
-    wrap: { minHeight:"100vh", background:"linear-gradient(135deg,#f3e8ff,#fce7f3)", padding:"12px", fontFamily:"sans-serif" },
-    card: { background:"white", borderRadius:"16px", padding:"16px", boxShadow:"0 2px 8px rgba(0,0,0,0.08)", marginBottom:"12px" },
-    th: { padding:"6px", color:"#9ca3af", fontSize:"11px", fontWeight:"600" },
-    inp: { width:"56px", textAlign:"center", border:"1px solid #d1d5db", borderRadius:"6px", padding:"3px 4px", fontSize:"13px", outline:"none" },
-    score: { padding:"5px", textAlign:"center", fontWeight:"bold", color:"#7c3aed" },
+    wrap: { minHeight: "100vh", background: T.wrap, padding: "12px", fontFamily: "sans-serif" },
+    card: { background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: "16px", padding: "16px", boxShadow: "0 2px 8px rgba(160,80,80,0.08)", marginBottom: "12px" },
+    th: { padding: "6px", color: T.th, fontSize: "11px", fontWeight: "600" },
+    inp: { width: "56px", textAlign: "center", border: `1px solid ${T.inpBorder}`, borderRadius: "6px", padding: "3px 4px", fontSize: "13px", outline: "none", background: T.inp, color: T.h1 },
+    score: { padding: "5px", textAlign: "center", fontWeight: "bold", color: T.score },
   };
 
-  const teamColor = (t) => t === "喵喵隊" ? "#ec4899" : "#3b82f6";
-  const teamBg = (t) => t === "喵喵隊" ? "#fdf2f8" : "#eff6ff";
+  // 遊戲頁表格 row 背景：喵喵隊無網底，汪汪隊淡橘底
+  const gameRowBg = (team) => team === "喵喵隊" ? "transparent" : WANG_BG;
+  // 總排行 row 背景：第一名馬卡龍淡黃，喵喵隊無網底，汪汪隊淡橘底
+  const rankRowBg = (rank, team) => {
+    if (rank === 0) return T.firstRowBg;
+    return team === "喵喵隊" ? "transparent" : WANG_BG;
+  };
+
+  const teamColor = (t) => t === "喵喵隊" ? MIAO_COLOR : WANG_COLOR;
 
   return (
     <div style={S.wrap}>
-      <div style={{textAlign:"center", marginBottom:"16px"}}>
-        <h1 style={{fontSize:"20px", fontWeight:"bold", color:"#7c3aed", margin:"0 0 6px"}}>🎉 Tomofun春酒計分系統</h1>
-        <div style={{display:"flex", justifyContent:"center", gap:"20px", fontSize:"13px"}}>
-          <span style={{color:"#ec4899", fontWeight:"600"}}>🐱 喵喵隊 (第0~4組)</span>
-          <span style={{color:"#3b82f6", fontWeight:"600"}}>🐶 汪汪隊 (第5~10組)</span>
+      <div style={{ textAlign: "center", marginBottom: "16px" }}>
+        <h1 style={{ fontSize: "20px", fontWeight: "bold", color: T.h1, margin: "0 0 6px" }}>🎉 Tomofun春酒計分系統</h1>
+        <div style={{ display: "flex", justifyContent: "center", gap: "20px", fontSize: "13px" }}>
+          <span style={{ color: MIAO_COLOR, fontWeight: "600", background: "#E8F7F7", padding: "2px 10px", borderRadius: "999px" }}>🐱 喵喵隊 (第0~4組)</span>
+          <span style={{ color: WANG_COLOR, fontWeight: "600", background: WANG_BG, padding: "2px 10px", borderRadius: "999px" }}>🐶 汪汪隊 (第5~10組)</span>
         </div>
-        <div style={{fontSize:"11px", color: syncColor[syncStatus], marginTop:"4px", fontWeight:"600"}}>
+        <div style={{ fontSize: "11px", color: syncColor[syncStatus], marginTop: "6px", fontWeight: "600" }}>
           {syncLabel[syncStatus]}
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{display:"flex", gap:"4px", background:"white", borderRadius:"12px", padding:"4px", maxWidth:"540px", margin:"0 auto 16px", boxShadow:"0 1px 4px rgba(0,0,0,0.1)"}}>
+      <div style={{ display: "flex", gap: "4px", background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: "12px", padding: "4px", maxWidth: "540px", margin: "0 auto 16px", boxShadow: "0 1px 4px rgba(160,80,80,0.08)" }}>
         {TABS.map((t, i) => (
           <button key={i} onClick={() => setTab(i)} style={{
-            flex:1, fontSize:"12px", padding:"7px 2px", borderRadius:"8px", border:"none", cursor:"pointer", fontWeight:"600",
-            background: tab===i ? "#7c3aed" : "transparent",
-            color: tab===i ? "white" : "#6b7280",
+            flex: 1, fontSize: "12px", padding: "7px 2px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "600",
+            background: tab === i ? T.tab : "transparent",
+            color: tab === i ? T.tabText : T.tabInactiveText,
+            transition: "all 0.15s",
           }}>{t}</button>
         ))}
       </div>
 
-      <div style={{maxWidth:"540px", margin:"0 auto"}}>
+      <div style={{ maxWidth: "540px", margin: "0 auto" }}>
         {tab === 0 && (
           <div style={S.card}>
-            <h2 style={{fontSize:"16px", fontWeight:"bold", color:"#7c3aed", margin:"0 0 4px"}}>🎯 遊戲一：尋愛的限時突擊</h2>
-            <p style={{fontSize:"11px", color:"#9ca3af", margin:"0 0 2px"}}>喵喵隊（第0~4組）回合一，汪汪隊（第5~10組）回合二</p>
-            <p style={{fontSize:"11px", color:"#9ca3af", margin:"0 0 12px"}}>11組統一排名｜並列者同分，下一名次接續不跳過</p>
-            <table style={{width:"100%", fontSize:"13px", borderCollapse:"collapse"}}>
+            <h2 style={{ fontSize: "16px", fontWeight: "bold", color: T.h1, margin: "0 0 4px" }}>🎯 遊戲一：尋愛的限時突擊</h2>
+            <p style={{ fontSize: "11px", color: T.th, margin: "0 0 2px" }}>喵喵隊（第0~4組）回合一，汪汪隊（第5~10組）回合二</p>
+            <p style={{ fontSize: "11px", color: T.th, margin: "0 0 12px" }}>11組統一排名｜並列者同分，下一名次接續不跳過</p>
+            <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{borderBottom:"1px solid #e5e7eb"}}>
-                  <th style={{...S.th, textAlign:"left"}}>組別</th>
+                <tr style={{ borderBottom: `1px solid ${T.cardBorder}` }}>
+                  <th style={{ ...S.th, textAlign: "left" }}>組別</th>
                   <th style={S.th}>隊伍</th>
                   <th style={S.th}>回合</th>
                   <th style={S.th}>答對題數</th>
@@ -247,13 +272,13 @@ export default function App() {
               </thead>
               <tbody>
                 {GROUPS.map((g, i) => (
-                  <tr key={g.id} style={{borderBottom:"1px solid #f3f4f6", background:teamBg(g.team)}}>
-                    <td style={{padding:"6px", fontWeight:"600"}}>{g.name}</td>
-                    <td style={{padding:"6px", textAlign:"center", fontSize:"11px", fontWeight:"600", color:teamColor(g.team)}}>{g.team}</td>
-                    <td style={{padding:"6px", textAlign:"center", fontSize:"11px", color:"#9ca3af"}}>{g.id<=4?"回合一":"回合二"}</td>
-                    <td style={{padding:"6px", textAlign:"center"}}>
+                  <tr key={g.id} style={{ borderBottom: `1px solid ${T.cardBorder}40`, background: gameRowBg(g.team) }}>
+                    <td style={{ padding: "6px", fontWeight: "600", color: T.h1 }}>{g.name}</td>
+                    <td style={{ padding: "6px", textAlign: "center", fontSize: "11px", fontWeight: "700", color: teamColor(g.team) }}>{g.team}</td>
+                    <td style={{ padding: "6px", textAlign: "center", fontSize: "11px", color: T.th }}>{g.id <= 4 ? "回合一" : "回合二"}</td>
+                    <td style={{ padding: "6px", textAlign: "center" }}>
                       <input type="number" min="0" max="10" value={g1[i].r1}
-                        onChange={(e) => updateG1(g1.map((x,j) => j===i ? {...x, r1:e.target.value} : x))}
+                        onChange={(e) => updateG1(g1.map((x, j) => j === i ? { ...x, r1: e.target.value } : x))}
                         style={S.inp} placeholder="0~10" />
                     </td>
                     <td style={S.score}>{g1Scores[g.id] ?? "-"}</td>
@@ -266,13 +291,13 @@ export default function App() {
 
         {tab === 1 && (
           <div style={S.card}>
-            <h2 style={{fontSize:"16px", fontWeight:"bold", color:"#7c3aed", margin:"0 0 4px"}}>⏱️ 遊戲二：第六感爆走</h2>
-            <p style={{fontSize:"11px", color:"#9ca3af", margin:"0 0 2px"}}>A選手目標8秒，B選手目標10秒，誤差越小排名越高</p>
-            <p style={{fontSize:"11px", color:"#9ca3af", margin:"0 0 12px"}}>總誤差 = |A秒數−8| + |B秒數−10|</p>
-            <table style={{width:"100%", fontSize:"13px", borderCollapse:"collapse"}}>
+            <h2 style={{ fontSize: "16px", fontWeight: "bold", color: T.h1, margin: "0 0 4px" }}>⏱️ 遊戲二：第六感爆走</h2>
+            <p style={{ fontSize: "11px", color: T.th, margin: "0 0 2px" }}>A選手目標8秒，B選手目標10秒，誤差越小排名越高</p>
+            <p style={{ fontSize: "11px", color: T.th, margin: "0 0 12px" }}>總誤差 = |A秒數−8| + |B秒數−10|</p>
+            <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{borderBottom:"1px solid #e5e7eb"}}>
-                  <th style={{...S.th, textAlign:"left"}}>組別</th>
+                <tr style={{ borderBottom: `1px solid ${T.cardBorder}` }}>
+                  <th style={{ ...S.th, textAlign: "left" }}>組別</th>
                   <th style={S.th}>隊伍</th>
                   <th style={S.th}>A秒數</th>
                   <th style={S.th}>B秒數</th>
@@ -284,24 +309,24 @@ export default function App() {
                 {GROUPS.map((g, i) => {
                   const d = g2[i];
                   const a = parseFloat(d.a), b = parseFloat(d.b);
-                  const aErr = !isNaN(a) ? Math.abs(a-8) : null;
-                  const bErr = !isNaN(b) ? Math.abs(b-10) : null;
-                  const total = aErr!==null && bErr!==null ? (aErr+bErr).toFixed(3) : "-";
+                  const aErr = !isNaN(a) ? Math.abs(a - 8) : null;
+                  const bErr = !isNaN(b) ? Math.abs(b - 10) : null;
+                  const total = aErr !== null && bErr !== null ? (aErr + bErr).toFixed(3) : "-";
                   return (
-                    <tr key={g.id} style={{borderBottom:"1px solid #f3f4f6", background:teamBg(g.team)}}>
-                      <td style={{padding:"6px", fontWeight:"600"}}>{g.name}</td>
-                      <td style={{padding:"6px", textAlign:"center", fontSize:"11px", fontWeight:"600", color:teamColor(g.team)}}>{g.team}</td>
-                      <td style={{padding:"6px", textAlign:"center"}}>
+                    <tr key={g.id} style={{ borderBottom: `1px solid ${T.cardBorder}40`, background: gameRowBg(g.team) }}>
+                      <td style={{ padding: "6px", fontWeight: "600", color: T.h1 }}>{g.name}</td>
+                      <td style={{ padding: "6px", textAlign: "center", fontSize: "11px", fontWeight: "700", color: teamColor(g.team) }}>{g.team}</td>
+                      <td style={{ padding: "6px", textAlign: "center" }}>
                         <input type="number" step="0.01" value={d.a}
-                          onChange={(e) => updateG2(g2.map((x,j) => j===i ? {...x, a:e.target.value} : x))}
+                          onChange={(e) => updateG2(g2.map((x, j) => j === i ? { ...x, a: e.target.value } : x))}
                           style={S.inp} placeholder="秒" />
                       </td>
-                      <td style={{padding:"6px", textAlign:"center"}}>
+                      <td style={{ padding: "6px", textAlign: "center" }}>
                         <input type="number" step="0.01" value={d.b}
-                          onChange={(e) => updateG2(g2.map((x,j) => j===i ? {...x, b:e.target.value} : x))}
+                          onChange={(e) => updateG2(g2.map((x, j) => j === i ? { ...x, b: e.target.value } : x))}
                           style={S.inp} placeholder="秒" />
                       </td>
-                      <td style={{padding:"6px", textAlign:"center", color:"#4b5563"}}>{total}</td>
+                      <td style={{ padding: "6px", textAlign: "center", color: T.th }}>{total}</td>
                       <td style={S.score}>{g2Scores[g.id] ?? "-"}</td>
                     </tr>
                   );
@@ -313,12 +338,12 @@ export default function App() {
 
         {tab === 2 && (
           <div style={S.card}>
-            <h2 style={{fontSize:"16px", fontWeight:"bold", color:"#7c3aed", margin:"0 0 4px"}}>📱 遊戲三：不良高校入學考</h2>
-            <p style={{fontSize:"11px", color:"#9ca3af", margin:"0 0 12px"}}>請輸入各組的Kahoot排名（1~11），積分自動 ×1.3</p>
-            <table style={{width:"100%", fontSize:"13px", borderCollapse:"collapse"}}>
+            <h2 style={{ fontSize: "16px", fontWeight: "bold", color: T.h1, margin: "0 0 4px" }}>📱 遊戲三：不良高校入學考</h2>
+            <p style={{ fontSize: "11px", color: T.th, margin: "0 0 12px" }}>請輸入各組的Kahoot排名（1~11），積分自動 ×1.3</p>
+            <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{borderBottom:"1px solid #e5e7eb"}}>
-                  <th style={{...S.th, textAlign:"left"}}>組別</th>
+                <tr style={{ borderBottom: `1px solid ${T.cardBorder}` }}>
+                  <th style={{ ...S.th, textAlign: "left" }}>組別</th>
                   <th style={S.th}>隊伍</th>
                   <th style={S.th}>Kahoot排名</th>
                   <th style={S.th}>基礎分</th>
@@ -328,17 +353,17 @@ export default function App() {
               <tbody>
                 {GROUPS.map((g, i) => {
                   const r = parseInt(g3[i].rank);
-                  const base = !isNaN(r) && r>=1 && r<=11 ? RANK_SCORES[r-1] : null;
+                  const base = !isNaN(r) && r >= 1 && r <= 11 ? RANK_SCORES[r - 1] : null;
                   return (
-                    <tr key={g.id} style={{borderBottom:"1px solid #f3f4f6", background:teamBg(g.team)}}>
-                      <td style={{padding:"6px", fontWeight:"600"}}>{g.name}</td>
-                      <td style={{padding:"6px", textAlign:"center", fontSize:"11px", fontWeight:"600", color:teamColor(g.team)}}>{g.team}</td>
-                      <td style={{padding:"6px", textAlign:"center"}}>
+                    <tr key={g.id} style={{ borderBottom: `1px solid ${T.cardBorder}40`, background: gameRowBg(g.team) }}>
+                      <td style={{ padding: "6px", fontWeight: "600", color: T.h1 }}>{g.name}</td>
+                      <td style={{ padding: "6px", textAlign: "center", fontSize: "11px", fontWeight: "700", color: teamColor(g.team) }}>{g.team}</td>
+                      <td style={{ padding: "6px", textAlign: "center" }}>
                         <input type="number" min="1" max="11" value={g3[i].rank}
-                          onChange={(e) => updateG3(g3.map((x,j) => j===i ? {...x, rank:e.target.value} : x))}
+                          onChange={(e) => updateG3(g3.map((x, j) => j === i ? { ...x, rank: e.target.value } : x))}
                           style={S.inp} placeholder="1~11" />
                       </td>
-                      <td style={{padding:"6px", textAlign:"center", color:"#6b7280"}}>{base ?? "-"}</td>
+                      <td style={{ padding: "6px", textAlign: "center", color: T.th }}>{base ?? "-"}</td>
                       <td style={S.score}>{g3Scores[g.id] ?? "-"}</td>
                     </tr>
                   );
@@ -349,51 +374,61 @@ export default function App() {
         )}
 
         {tab === 3 && (
-          <div style={{display:"flex", flexDirection:"column", gap:"12px"}}>
-            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px"}}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
               {[
-                {name:"喵喵隊", emoji:"🐱", avg:miaoAvg, win:winnerTeam==="喵喵隊"},
-                {name:"汪汪隊", emoji:"🐶", avg:wangAvg, win:winnerTeam==="汪汪隊"},
+                { name: "喵喵隊", emoji: "🐱", avg: miaoAvg, win: winnerTeam === "喵喵隊", color: MIAO_COLOR, bg: "#E8F7F7" },
+                { name: "汪汪隊", emoji: "🐶", avg: wangAvg, win: winnerTeam === "汪汪隊", color: WANG_COLOR, bg: WANG_BG },
               ].map((t) => (
-                <div key={t.name} style={{borderRadius:"16px", padding:"14px", boxShadow:"0 2px 8px rgba(0,0,0,0.08)", textAlign:"center", background:t.win?"#fbbf24":"white"}}>
-                  <div style={{fontSize:"28px"}}>{t.emoji}</div>
-                  <div style={{fontWeight:"bold", color:t.win?"white":"#374151"}}>{t.name}</div>
-                  <div style={{fontSize:"11px", color:t.win?"#fef3c7":"#9ca3af"}}>平均分</div>
-                  <div style={{fontSize:"22px", fontWeight:"bold", color:t.win?"white":"#7c3aed"}}>
-                    {miaoAvg||wangAvg ? t.avg.toFixed(1) : "-"}
+                <div key={t.name} style={{
+                  borderRadius: "16px", padding: "14px",
+                  boxShadow: "0 2px 8px rgba(160,80,80,0.10)", textAlign: "center",
+                  background: t.win ? t.color : t.bg,
+                  border: `1px solid ${t.win ? t.color : T.cardBorder}`,
+                }}>
+                  <div style={{ fontSize: "28px" }}>{t.emoji}</div>
+                  <div style={{ fontWeight: "bold", color: t.win ? "white" : T.h1 }}>{t.name}</div>
+                  <div style={{ fontSize: "11px", color: t.win ? "rgba(255,255,255,0.8)" : T.th }}>平均分</div>
+                  <div style={{ fontSize: "22px", fontWeight: "bold", color: t.win ? "white" : t.color }}>
+                    {miaoAvg || wangAvg ? t.avg.toFixed(1) : "-"}
                   </div>
-                  {t.win && <div style={{color:"white", fontSize:"11px", marginTop:"4px"}}>🏆 勝隊 +50分/組</div>}
+                  {t.win && <div style={{ color: "white", fontSize: "11px", marginTop: "4px" }}>🏆 勝隊 +50分/組</div>}
                 </div>
               ))}
             </div>
 
             <div style={S.card}>
-              <h2 style={{fontSize:"16px", fontWeight:"bold", color:"#7c3aed", margin:"0 0 12px"}}>🏅 組別總排名</h2>
-              <table style={{width:"100%", fontSize:"12px", borderCollapse:"collapse"}}>
+              <h2 style={{ fontSize: "16px", fontWeight: "bold", color: T.h1, margin: "0 0 12px" }}>🏅 組別總排名</h2>
+              <table style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{borderBottom:"1px solid #e5e7eb"}}>
-                    {["名次","組別","G1","G2","G3","小計","加成","總分"].map((h,i) => (
-                      <th key={i} style={{...S.th, textAlign: i===1?"left":"center"}}>{h}</th>
+                  <tr style={{ borderBottom: `1px solid ${T.cardBorder}` }}>
+                    {["名次", "組別", "G1", "G2", "G3", "小計", "加成", "總分"].map((h, i) => (
+                      <th key={i} style={{ ...S.th, textAlign: i === 1 ? "left" : "center" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {finalTotals.map((t, rank) => {
                     const g = GROUPS[t.id];
-                    const medal = ["🥇","🥈","🥉"][rank] ?? `${rank+1}`;
+                    const medal = ["🥇", "🥈", "🥉"][rank] ?? `${rank + 1}`;
                     return (
-                      <tr key={t.id} style={{borderBottom:"1px solid #f3f4f6", background:rank===0?"#fefce8":teamBg(g.team)}}>
-                        <td style={{padding:"5px", textAlign:"center"}}>{medal}</td>
-                        <td style={{padding:"5px"}}>
-                          <span style={{fontWeight:"600"}}>{g.name}</span>
-                          <span style={{marginLeft:"3px", fontSize:"10px", color:teamColor(g.team)}}>{g.team}</span>
+                      <tr key={t.id} style={{
+                        borderBottom: `1px solid ${T.cardBorder}40`,
+                        background: rankRowBg(rank, g.team),
+                      }}>
+                        <td style={{ padding: "5px", textAlign: "center" }}>{medal}</td>
+                        <td style={{ padding: "5px" }}>
+                          <span style={{ fontWeight: "600", color: T.h1 }}>{g.name}</span>
+                          <span style={{ marginLeft: "3px", fontSize: "10px", fontWeight: "700", color: teamColor(g.team) }}>{g.team}</span>
                         </td>
-                        <td style={{padding:"5px", textAlign:"center"}}>{t.s1||"-"}</td>
-                        <td style={{padding:"5px", textAlign:"center"}}>{t.s2||"-"}</td>
-                        <td style={{padding:"5px", textAlign:"center"}}>{t.s3||"-"}</td>
-                        <td style={{padding:"5px", textAlign:"center", color:"#4b5563"}}>{t.sum}</td>
-                        <td style={{padding:"5px", textAlign:"center", color:"#16a34a", fontWeight:"500"}}>{t.bonus?`+${t.bonus}`:"-"}</td>
-                        <td style={{padding:"5px", textAlign:"center", fontWeight:"bold", color:"#7c3aed"}}>{t.final}</td>
+                        <td style={{ padding: "5px", textAlign: "center", color: T.th }}>{t.s1 || "-"}</td>
+                        <td style={{ padding: "5px", textAlign: "center", color: T.th }}>{t.s2 || "-"}</td>
+                        <td style={{ padding: "5px", textAlign: "center", color: T.th }}>{t.s3 || "-"}</td>
+                        <td style={{ padding: "5px", textAlign: "center", color: T.h1 }}>{t.sum}</td>
+                        <td style={{ padding: "5px", textAlign: "center", fontWeight: "600", color: T.bonusColor }}>
+                          {t.bonus ? `+${t.bonus}` : "-"}
+                        </td>
+                        <td style={{ padding: "5px", textAlign: "center", fontWeight: "bold", color: T.score }}>{t.final}</td>
                       </tr>
                     );
                   })}
@@ -402,9 +437,10 @@ export default function App() {
             </div>
 
             <button onClick={() => setShowChampion(true)} style={{
-              width:"100%", padding:"14px", background:"linear-gradient(to right,#8b5cf6,#ec4899)",
-              color:"white", fontWeight:"bold", borderRadius:"16px", border:"none", cursor:"pointer",
-              fontSize:"16px", boxShadow:"0 4px 12px rgba(139,92,246,0.4)"
+              width: "100%", padding: "14px",
+              background: `linear-gradient(to right, ${T.tab}, ${WANG_COLOR})`,
+              color: "white", fontWeight: "bold", borderRadius: "16px", border: "none", cursor: "pointer",
+              fontSize: "16px", boxShadow: "0 4px 12px rgba(200,120,104,0.35)",
             }}>
               🏆 公佈最終冠軍！
             </button>
@@ -414,39 +450,43 @@ export default function App() {
 
       {showChampion && (
         <div onClick={() => setShowChampion(false)} style={{
-          position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"center",
-          background:"rgba(0,0,0,0.7)"
+          position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center",
+          background: "rgba(80,30,30,0.6)"
         }}>
-          <canvas ref={confettiRef} style={{position:"absolute", inset:0, pointerEvents:"none"}} />
+          <canvas ref={confettiRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
           <div onClick={(e) => e.stopPropagation()} style={{
-            position:"relative", background:"white", borderRadius:"24px", padding:"32px",
-            textAlign:"center", boxShadow:"0 20px 60px rgba(0,0,0,0.3)", margin:"16px",
-            maxWidth:"320px", width:"100%"
+            position: "relative", background: T.card, borderRadius: "24px", padding: "32px",
+            textAlign: "center", boxShadow: "0 20px 60px rgba(160,80,80,0.25)", margin: "16px",
+            maxWidth: "320px", width: "100%", border: `1px solid ${T.cardBorder}`,
           }}>
-            <div style={{fontSize:"48px", marginBottom:"8px"}}>🏆</div>
-            <div style={{color:"#9ca3af", fontSize:"13px", marginBottom:"4px"}}>總冠軍</div>
-            <div style={{fontSize:"28px", fontWeight:"900", color:"#7c3aed", marginBottom:"4px"}}>
+            <div style={{ fontSize: "48px", marginBottom: "8px" }}>🏆</div>
+            <div style={{ color: T.th, fontSize: "13px", marginBottom: "4px" }}>總冠軍</div>
+            <div style={{ fontSize: "28px", fontWeight: "900", color: T.h1, marginBottom: "4px" }}>
               {finalTotals[0] ? GROUPS[finalTotals[0].id].name : "?"}
             </div>
-            <div style={{fontSize:"16px", fontWeight:"bold", marginBottom:"8px", color: finalTotals[0] ? teamColor(GROUPS[finalTotals[0].id].team) : "#7c3aed"}}>
+            <div style={{
+              fontSize: "16px", fontWeight: "bold", marginBottom: "8px",
+              color: finalTotals[0] ? teamColor(GROUPS[finalTotals[0].id].team) : T.h1
+            }}>
               {finalTotals[0] ? GROUPS[finalTotals[0].id].team : ""}
             </div>
-            <div style={{fontSize:"36px", fontWeight:"900", color:"#f59e0b", marginBottom:"16px"}}>
+            <div style={{ fontSize: "36px", fontWeight: "900", color: T.bonusColor, marginBottom: "16px" }}>
               {finalTotals[0]?.final ?? 0} 分
             </div>
             {winnerTeam && (
               <div style={{
-                fontSize:"13px", fontWeight:"600", marginBottom:"16px", padding:"4px 12px",
-                borderRadius:"999px", display:"inline-block",
-                background: winnerTeam==="喵喵隊"?"#fce7f3":"#dbeafe",
-                color: winnerTeam==="喵喵隊"?"#db2777":"#2563eb"
+                fontSize: "13px", fontWeight: "600", marginBottom: "16px", padding: "4px 12px",
+                borderRadius: "999px", display: "inline-block",
+                background: winnerTeam === "喵喵隊" ? "#E8F7F7" : WANG_BG,
+                color: winnerTeam === "喵喵隊" ? MIAO_COLOR : WANG_COLOR,
               }}>
                 {winnerTeam} 勝利！🎊
               </div>
             )}
             <button onClick={() => setShowChampion(false)} style={{
-              display:"block", width:"100%", padding:"10px", background:"#f3e8ff",
-              color:"#7c3aed", borderRadius:"12px", border:"none", cursor:"pointer", fontWeight:"500", fontSize:"13px"
+              display: "block", width: "100%", padding: "10px", background: T.tabInactive,
+              color: T.h1, borderRadius: "12px", border: `1px solid ${T.cardBorder}`,
+              cursor: "pointer", fontWeight: "500", fontSize: "13px"
             }}>關閉</button>
           </div>
         </div>
