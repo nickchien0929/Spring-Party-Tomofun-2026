@@ -1,4 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+
+const DB_URL = "https://spring-party-scoring-default-rtdb.asia-southeast1.firebasedatabase.app";
 
 const GROUPS = Array.from({ length: 11 }, (_, i) => ({
   id: i,
@@ -35,8 +37,68 @@ export default function App() {
   const [g2, setG2] = useState(initG2());
   const [g3, setG3] = useState(initG3());
   const [showChampion, setShowChampion] = useState(false);
+  const [syncStatus, setSyncStatus] = useState("connecting"); // connecting | synced | error
   const confettiRef = useRef(null);
+  const esRef = useRef(null);
+  const saveTimerRef = useRef(null);
 
+  // 讀取初始資料 + 建立 SSE 即時監聽
+  useEffect(() => {
+    const es = new EventSource(`${DB_URL}/scores.json?accept=text/event-stream`);
+    esRef.current = es;
+
+    es.addEventListener("put", (e) => {
+      try {
+        const payload = JSON.parse(e.data);
+        const data = payload.data;
+        if (!data) return;
+        if (data.g1) setG1(data.g1);
+        if (data.g2) setG2(data.g2);
+        if (data.g3) setG3(data.g3);
+        setSyncStatus("synced");
+      } catch {}
+    });
+
+    es.addEventListener("patch", (e) => {
+      try {
+        const payload = JSON.parse(e.data);
+        const data = payload.data;
+        if (!data) return;
+        if (data.g1) setG1(data.g1);
+        if (data.g2) setG2(data.g2);
+        if (data.g3) setG3(data.g3);
+        setSyncStatus("synced");
+      } catch {}
+    });
+
+    es.onerror = () => setSyncStatus("error");
+
+    return () => es.close();
+  }, []);
+
+  // debounce 儲存：input 變動後 800ms 才上傳
+  const scheduleSave = useCallback((newG1, newG2, newG3) => {
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        setSyncStatus("connecting");
+        await fetch(`${DB_URL}/scores.json`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ g1: newG1, g2: newG2, g3: newG3 }),
+        });
+        setSyncStatus("synced");
+      } catch {
+        setSyncStatus("error");
+      }
+    }, 800);
+  }, []);
+
+  const updateG1 = (newG1) => { setG1(newG1); scheduleSave(newG1, g2, g3); };
+  const updateG2 = (newG2) => { setG2(newG2); scheduleSave(g1, newG2, g3); };
+  const updateG3 = (newG3) => { setG3(newG3); scheduleSave(g1, g2, newG3); };
+
+  // 分數計算（同原本邏輯）
   const g1Scores = (() => {
     const vals = g1.map((g) => ({ id: g.id, val: g.r1 !== "" ? parseFloat(g.r1) : null }));
     const ranked = getRankScores(vals, true);
@@ -93,6 +155,7 @@ export default function App() {
     })
     .sort((a, b) => b.final - a.final);
 
+  // Confetti
   useEffect(() => {
     if (!showChampion) return;
     let frame;
@@ -128,6 +191,9 @@ export default function App() {
     return () => cancelAnimationFrame(frame);
   }, [showChampion]);
 
+  const syncLabel = { connecting: "⏳ 同步中…", synced: "✅ 已同步", error: "❌ 同步失敗" };
+  const syncColor = { connecting: "#f59e0b", synced: "#10b981", error: "#ef4444" };
+
   const S = {
     wrap: { minHeight:"100vh", background:"linear-gradient(135deg,#f3e8ff,#fce7f3)", padding:"12px", fontFamily:"sans-serif" },
     card: { background:"white", borderRadius:"16px", padding:"16px", boxShadow:"0 2px 8px rgba(0,0,0,0.08)", marginBottom:"12px" },
@@ -141,14 +207,15 @@ export default function App() {
 
   return (
     <div style={S.wrap}>
-      {/* Header */}
       <div style={{textAlign:"center", marginBottom:"16px"}}>
         <h1 style={{fontSize:"20px", fontWeight:"bold", color:"#7c3aed", margin:"0 0 6px"}}>🎉 Tomofun春酒計分系統</h1>
         <div style={{display:"flex", justifyContent:"center", gap:"20px", fontSize:"13px"}}>
           <span style={{color:"#ec4899", fontWeight:"600"}}>🐱 喵喵隊 (第0~4組)</span>
           <span style={{color:"#3b82f6", fontWeight:"600"}}>🐶 汪汪隊 (第5~10組)</span>
         </div>
-        <div style={{fontSize:"11px", color:"#f59e0b", marginTop:"4px"}}>⚠️ 預覽模式（無 Firebase 同步）</div>
+        <div style={{fontSize:"11px", color: syncColor[syncStatus], marginTop:"4px", fontWeight:"600"}}>
+          {syncLabel[syncStatus]}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -163,8 +230,6 @@ export default function App() {
       </div>
 
       <div style={{maxWidth:"540px", margin:"0 auto"}}>
-
-        {/* Game 1 */}
         {tab === 0 && (
           <div style={S.card}>
             <h2 style={{fontSize:"16px", fontWeight:"bold", color:"#7c3aed", margin:"0 0 4px"}}>🎯 遊戲一：尋愛的限時突擊</h2>
@@ -188,7 +253,7 @@ export default function App() {
                     <td style={{padding:"6px", textAlign:"center", fontSize:"11px", color:"#9ca3af"}}>{g.id<=4?"回合一":"回合二"}</td>
                     <td style={{padding:"6px", textAlign:"center"}}>
                       <input type="number" min="0" max="10" value={g1[i].r1}
-                        onChange={(e) => setG1(g1.map((x,j) => j===i ? {...x, r1:e.target.value} : x))}
+                        onChange={(e) => updateG1(g1.map((x,j) => j===i ? {...x, r1:e.target.value} : x))}
                         style={S.inp} placeholder="0~10" />
                     </td>
                     <td style={S.score}>{g1Scores[g.id] ?? "-"}</td>
@@ -199,7 +264,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Game 2 */}
         {tab === 1 && (
           <div style={S.card}>
             <h2 style={{fontSize:"16px", fontWeight:"bold", color:"#7c3aed", margin:"0 0 4px"}}>⏱️ 遊戲二：第六感爆走</h2>
@@ -229,12 +293,12 @@ export default function App() {
                       <td style={{padding:"6px", textAlign:"center", fontSize:"11px", fontWeight:"600", color:teamColor(g.team)}}>{g.team}</td>
                       <td style={{padding:"6px", textAlign:"center"}}>
                         <input type="number" step="0.01" value={d.a}
-                          onChange={(e) => setG2(g2.map((x,j) => j===i ? {...x, a:e.target.value} : x))}
+                          onChange={(e) => updateG2(g2.map((x,j) => j===i ? {...x, a:e.target.value} : x))}
                           style={S.inp} placeholder="秒" />
                       </td>
                       <td style={{padding:"6px", textAlign:"center"}}>
                         <input type="number" step="0.01" value={d.b}
-                          onChange={(e) => setG2(g2.map((x,j) => j===i ? {...x, b:e.target.value} : x))}
+                          onChange={(e) => updateG2(g2.map((x,j) => j===i ? {...x, b:e.target.value} : x))}
                           style={S.inp} placeholder="秒" />
                       </td>
                       <td style={{padding:"6px", textAlign:"center", color:"#4b5563"}}>{total}</td>
@@ -247,7 +311,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Game 3 */}
         {tab === 2 && (
           <div style={S.card}>
             <h2 style={{fontSize:"16px", fontWeight:"bold", color:"#7c3aed", margin:"0 0 4px"}}>📱 遊戲三：不良高校入學考</h2>
@@ -272,7 +335,7 @@ export default function App() {
                       <td style={{padding:"6px", textAlign:"center", fontSize:"11px", fontWeight:"600", color:teamColor(g.team)}}>{g.team}</td>
                       <td style={{padding:"6px", textAlign:"center"}}>
                         <input type="number" min="1" max="11" value={g3[i].rank}
-                          onChange={(e) => setG3(g3.map((x,j) => j===i ? {...x, rank:e.target.value} : x))}
+                          onChange={(e) => updateG3(g3.map((x,j) => j===i ? {...x, rank:e.target.value} : x))}
                           style={S.inp} placeholder="1~11" />
                       </td>
                       <td style={{padding:"6px", textAlign:"center", color:"#6b7280"}}>{base ?? "-"}</td>
@@ -285,7 +348,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Leaderboard */}
         {tab === 3 && (
           <div style={{display:"flex", flexDirection:"column", gap:"12px"}}>
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px"}}>
@@ -350,7 +412,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Champion Modal */}
       {showChampion && (
         <div onClick={() => setShowChampion(false)} style={{
           position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"center",
