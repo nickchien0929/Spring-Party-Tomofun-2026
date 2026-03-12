@@ -203,7 +203,7 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 p-3">
       <div className="text-center mb-4">
         <h1 className="text-2xl font-bold text-purple-700">
-          🎉 春酒大賽計分系統
+          🎉 Tomofun春酒計分系統
         </h1>
         <div className="flex justify-center gap-6 mt-1 text-sm">
           <span className="text-pink-500 font-semibold">
